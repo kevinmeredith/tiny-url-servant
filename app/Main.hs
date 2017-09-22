@@ -34,27 +34,27 @@ import Text.Blaze.Html.Renderer.Utf8
 import qualified Data.Aeson.Parser
 import qualified Text.Blaze.Html
 
-type TinyUrlAPI = "tinyUrl" :> Capture "value" String :> Get '[JSON] TinyUrlResponse
+type API = "tinyUrl" :> Capture "value" String :> Get '[JSON] ResolvedTinyUrl
 
-newtype TinyUrl = TinyUrl String
+newtype TinyUrl = TinyUrl String deriving Generic
 
-data TinyUrlResponse = TinyUrlResponse
-  { value :: TinyUrl } deriving (Show, Generic)
+instance ToJSON TinyUrl
 
-instance ToJSON TinyUrlResponse
+data ResolvedTinyUrl = ResolvedTinyUrl
+  { value :: TinyUrl } deriving Generic
 
-tinyUrl :: TinyUrl
-tinyUrl = TinyUrl
+instance ToJSON ResolvedTinyUrl
 
-tinyUrlAPI :: Proxy TinyUrlAPI
+tinyUrlAPI :: Proxy API
 tinyUrlAPI = Proxy
 
-server :: Server TinyUrlAPI
-server = return tinyUrl
+server :: Server API
+server = f
+  where f :: String -> Handler ResolvedTinyUrl
+        f x = return $ ResolvedTinyUrl $ TinyUrl x
 
 app :: Application
 app = serve tinyUrlAPI server
 
 main :: IO ()
 main = run 8081 app
-
