@@ -5,25 +5,13 @@
 ```bash
 $stack build
 $stack exec project-exe
--- it's now running
+# it's now running the web server
 
 # open another terminal
 
-$curl -i localhost:8081/tinyUrl/foobar
-HTTP/1.1 200 OK
-Transfer-Encoding: chunked
-Date: Fri, 22 Sep 2017 12:39:19 GMT
-Server: Warp/3.2.13
-Content-Type: application/json;charset=utf-8
-
-{"value":"foobar"}
-
-$curl -i localhost:8081/tinyUrl/zigzag
-HTTP/1.1 200 OK
-Transfer-Encoding: chunked
-Date: Fri, 22 Sep 2017 12:39:22 GMT
-Server: Warp/3.2.13
-Content-Type: application/json;charset=utf-8
-
-{"value":"zigzag"}
+$curl --header "Accept: text/html" localhost:8081/tinyUrl/asdfasdf
+<tr><td>asdfasdf</td></tr>
+$
+$curl --header "Accept: application/json" localhost:8081/tinyUrl/asdfasdf
+{"value":"asdfasdf"}$
 ```
