@@ -19,6 +19,8 @@ import Network.Wai
 import Network.Wai.Handler.Warp
 import Servant
 import Servant.HTML.Lucid
+import Control.Concurrent.MVar
+import Data.Map
 
 type API = "tinyUrl" :> Capture "value" String :> Get '[JSON, HTML] ResolvedTinyUrl
 
@@ -38,6 +40,8 @@ instance ToHtml ResolvedTinyUrl where
       td_ (toHtml $ value x)
 
   toHtmlRaw = toHtml
+
+data ResolvedUrls = ResolvedUrls (MVar (Map TinyUrl String))
 
 tinyUrlAPI :: Proxy API
 tinyUrlAPI = Proxy
