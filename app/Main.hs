@@ -41,18 +41,23 @@ instance ToHtml ResolvedTinyUrl where
 
   toHtmlRaw = toHtml
 
-data ResolvedUrls = ResolvedUrls (MVar (Map TinyUrl String))
+newtype ResolvedUrls = ResolvedUrls (MVar (Map TinyUrl String))
 
 tinyUrlAPI :: Proxy API
 tinyUrlAPI = Proxy
 
-server :: Server API
-server = f
+server :: (MVar (Map TinyUrl String)) -> Server API
+server map = f
   where f :: String -> Handler ResolvedTinyUrl
-        f x = return $ ResolvedTinyUrl $ TinyUrl x
+        f s = do
+          m      <- liftM $ takeMVar map
+          found  <- return $ Data.Map.lookup s m
+          case found of
+             Just a  -> return $ ResolvedTinyUrl $ TinyUrl a
+             Nothing -> return NotFound
 
-app :: Application
-app = serve tinyUrlAPI server
+app :: (MVar (Map TinyUrl String)) -> Application
+app map = serve tinyUrlAPI (server map)
 
 main :: IO ()
 main = run 8081 app
