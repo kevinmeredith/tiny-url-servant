@@ -23,7 +23,9 @@ import Control.Concurrent.MVar
 import Data.Map
 import Control.Monad.Except
 
-type API = "tinyUrl" :> Capture "value" String :> Get '[JSON, HTML] ResolvedTinyUrl
+type API = "tinyUrl" :> Capture "value" String :> (
+              Get '[JSON, HTML] ResolvedTinyUrl :<|> ReqBody '[JSON] ResolvedTinyUrl :> Put '[] ()
+            )
 
 -- credit: https://stackoverflow.com/questions/46390448/deriving-tohtml-for-newtype
 newtype TinyUrl = TinyUrl String deriving (Generic, ToHtml, Ord, Eq)
