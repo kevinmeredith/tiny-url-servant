@@ -21,11 +21,12 @@ import Servant
 import Servant.HTML.Lucid
 import Control.Concurrent.MVar
 import Data.Map
+import Control.Monad.Except
 
 type API = "tinyUrl" :> Capture "value" String :> Get '[JSON, HTML] ResolvedTinyUrl
 
 -- credit: https://stackoverflow.com/questions/46390448/deriving-tohtml-for-newtype
-newtype TinyUrl = TinyUrl String deriving (Generic, ToHtml)
+newtype TinyUrl = TinyUrl String deriving (Generic, ToHtml, Ord, Eq)
 
 instance ToJSON TinyUrl
 
@@ -46,18 +47,23 @@ newtype ResolvedUrls = ResolvedUrls (MVar (Map TinyUrl String))
 tinyUrlAPI :: Proxy API
 tinyUrlAPI = Proxy
 
-server :: (MVar (Map TinyUrl String)) -> Server API
-server map = f
-  where f :: String -> Handler ResolvedTinyUrl
-        f s = do
-          m      <- liftM $ takeMVar map
-          found  <- return $ Data.Map.lookup s m
-          case found of
-             Just a  -> return $ ResolvedTinyUrl $ TinyUrl a
-             Nothing -> return NotFound
+-- Handler a = ExceptT ServantErr IO a
 
-app :: (MVar (Map TinyUrl String)) -> Application
+-- Handler ResolvedTinyUrl
+
+server :: IO (MVar (Map TinyUrl String)) -> Server API
+server ioMap = f
+  where f :: String -> Handler ResolvedTinyUrl
+        f s = Handler $ do
+          map    <- lift $ ioMap
+          m      <- lift $ takeMVar map
+          found  <- lift $ return $ Data.Map.lookup (TinyUrl s) m
+          case found of
+             Just a  -> return $ ResolvedTinyUrl (TinyUrl a)
+             Nothing -> (lift $ putStrLn ("did not find " ++ s)) >> throwError err404
+
+app :: IO (MVar (Map TinyUrl String)) -> Application
 app map = serve tinyUrlAPI (server map)
 
 main :: IO ()
-main = run 8081 app
+main = run 8081 $ app (newMVar $ Data.Map.insert (TinyUrl "foo") "bar" $ Data.Map.empty)
