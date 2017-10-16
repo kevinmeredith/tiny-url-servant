@@ -31,7 +31,7 @@ type ValueAPI = Capture "value" String :> (
         )
 
 -- credit: https://stackoverflow.com/questions/46390448/deriving-tohtml-for-newtype
-newtype TinyUrl = TinyUrl String deriving (Generic, ToHtml, Ord, Eq)
+newtype TinyUrl = TinyUrl String deriving (Generic, ToHtml, Ord, Eq, Show)
 
 instance ToJSON TinyUrl
 
@@ -65,7 +65,8 @@ server ioMap = tinyUrlOperations
           where get :: String -> Handler ResolvedTinyUrl
                 get s = Handler $ do
                   map    <- lift $ ioMap
-                  m      <- lift $ takeMVar map
+                  m      <- lift $ readMVar map
+                  _      <- lift $ putStrLn ("m " ++ show m)
                   found  <- lift $ return $ Data.Map.lookup (TinyUrl s) m
                   case found of
                      Just a  -> return $ ResolvedTinyUrl (TinyUrl a)
@@ -76,6 +77,7 @@ server ioMap = tinyUrlOperations
                  map     <- lift $ ioMap
                  m       <- lift $ takeMVar map
                  updated <- lift $ return $ Data.Map.insert (TinyUrl key) value m
+                 _       <- lift $ putStrLn $ "updated:" ++ (show updated)
                  _       <- lift $ putMVar map updated
                  return NoContent
 
@@ -84,4 +86,4 @@ app :: IO (MVar (Map TinyUrl String)) -> Application
 app map = serve tinyUrlAPI (server map)
 
 main :: IO ()
-main = run 8081 $ app (newMVar $ Data.Map.insert (TinyUrl "foo") "bar" $ Data.Map.empty)
+main = run 8081 $ app (newMVar $ Data.Map.empty)
