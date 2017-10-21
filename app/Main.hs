@@ -18,6 +18,7 @@ import Lucid
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Servant
+import Servant.Docs hiding (API)
 import Servant.HTML.Lucid
 import Control.Concurrent.MVar
 import Data.Map
@@ -43,6 +44,7 @@ data UpdatedTinyUrl = UpdatedTinyUrl
 instance ToJSON ResolvedTinyUrl
 
 instance FromJSON UpdatedTinyUrl
+instance ToJSON UpdatedTinyUrl
 
 instance ToHtml ResolvedTinyUrl where
   toHtml x =
@@ -79,6 +81,19 @@ server map = tinyUrlOperations
                  _       <- lift $ putMVar map updated
                  return NoContent
 
+instance ToCapture (Capture "value" String) where
+  toCapture _ =
+    DocCapture "key"
+               "TinyUrl key"
+
+instance (ToSample ResolvedTinyUrl) where
+  toSamples _ = singleSample $ ResolvedTinyUrl $ TinyUrl "foo"
+
+instance (ToSample UpdatedTinyUrl) where
+  toSamples _ = singleSample $ UpdatedTinyUrl "bar"
+
+
+-- ResolvedTinyUrl
 
 app :: MVar (Map TinyUrl String) -> Application
 app map = serve tinyUrlAPI (server map)
