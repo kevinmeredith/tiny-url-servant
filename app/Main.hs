@@ -56,15 +56,14 @@ newtype ResolvedUrls = ResolvedUrls (MVar (Map TinyUrl String))
 tinyUrlAPI :: Proxy API
 tinyUrlAPI = Proxy
 
-server :: IO (MVar (Map TinyUrl String)) -> Server API
-server ioMap = tinyUrlOperations
+server :: MVar (Map TinyUrl String) -> Server API
+server map = tinyUrlOperations
 
   where tinyUrlOperations v =
           get v :<|> put v
 
           where get :: String -> Handler ResolvedTinyUrl
                 get s = Handler $ do
-                  map    <- lift $ ioMap
                   m      <- lift $ readMVar map
                   _      <- lift $ putStrLn ("m " ++ show m)
                   found  <- lift $ return $ Data.Map.lookup (TinyUrl s) m
@@ -74,7 +73,6 @@ server ioMap = tinyUrlOperations
 
                 put :: String -> UpdatedTinyUrl -> Handler NoContent
                 put key (UpdatedTinyUrl value) = Handler $ do
-                 map     <- lift $ ioMap
                  m       <- lift $ takeMVar map
                  updated <- lift $ return $ Data.Map.insert (TinyUrl key) value m
                  _       <- lift $ putStrLn $ "updated:" ++ (show updated)
@@ -82,8 +80,10 @@ server ioMap = tinyUrlOperations
                  return NoContent
 
 
-app :: IO (MVar (Map TinyUrl String)) -> Application
+app :: MVar (Map TinyUrl String) -> Application
 app map = serve tinyUrlAPI (server map)
 
 main :: IO ()
-main = run 8081 $ app (newMVar $ Data.Map.empty)
+main =  do
+  map <- newMVar $ Data.Map.empty
+  run 8081 (app map)
