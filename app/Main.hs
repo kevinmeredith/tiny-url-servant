@@ -23,79 +23,82 @@ import Servant.HTML.Lucid
 import Control.Concurrent.MVar
 import Data.Map
 import Control.Monad.Except
+import Network.URI
+import Data.HashMap.Lazy
+import qualified Data.Text as T
+
 
 type API = "tinyUrl" :> ValueAPI
 
 type ValueAPI = Capture "value" String :> (
-                       Get '[JSON, HTML] ResolvedTinyUrl
-                  :<|> ReqBody '[JSON] UpdatedTinyUrl :> PutNoContent '[JSON] NoContent
+                       Get '[JSON, HTML] TinyUrlValue
+                  :<|> ReqBody '[JSON] TinyUrlValue :> PutNoContent '[JSON] NoContent
         )
 
--- credit: https://stackoverflow.com/questions/46390448/deriving-tohtml-for-newtype
-newtype TinyUrl = TinyUrl String deriving (Generic, ToHtml, Ord, Eq, Show)
+newtype TinyUrlValue = TinyUrlValue { value :: URI } deriving Generic
 
-instance ToJSON TinyUrl
+instance FromJSON URI where
+    parseJSON = withObject "URI" $ \v ->
+      case Data.HashMap.Lazy.lookup "value" v of
+        Just (String str) -> let unpacked = T.unpack str in
+          case parseURI unpacked of
+            Just uri -> pure uri
+            Nothing  -> fail $ "String:" ++ unpacked ++ "is not valid URI."
+        Just value        -> typeMismatch "value" value
+        Nothing           -> fail $ "JSON object does not have 'value' key."
 
-newtype ResolvedTinyUrl = ResolvedTinyUrl { value :: TinyUrl } deriving Generic
+instance ToJSON URI where
+  toJSON x = String $ T.pack $ show x
 
-data UpdatedTinyUrl = UpdatedTinyUrl
-  { v :: String } deriving Generic
+instance FromJSON TinyUrlValue
+instance ToJSON TinyUrlValue
 
-instance ToJSON ResolvedTinyUrl
-
-instance FromJSON UpdatedTinyUrl
-instance ToJSON UpdatedTinyUrl
-
-instance ToHtml ResolvedTinyUrl where
+instance ToHtml TinyUrlValue where
   toHtml x =
     tr_ $ do
-      td_ (toHtml $ value x)
+      td_ (toHtml $ show $ value x)
 
   toHtmlRaw = toHtml
 
-newtype ResolvedUrls = ResolvedUrls (MVar (Map TinyUrl String))
+newtype ResolvedUrls = ResolvedUrls (MVar (Map String URI))
 
 tinyUrlAPI :: Proxy API
 tinyUrlAPI = Proxy
 
-server :: MVar (Map TinyUrl String) -> Server API
+server :: MVar (Map String URI) -> Server API
 server map = tinyUrlOperations
 
-  where tinyUrlOperations v =
-          get v :<|> put v
+  where tinyUrlOperations key =
+          get key :<|> put key
 
-          where get :: String -> Handler ResolvedTinyUrl
-                get s = Handler $ do
+          where get :: String -> Handler TinyUrlValue
+                get key = Handler $ do
                   m      <- lift $ readMVar map
                   _      <- lift $ putStrLn ("m " ++ show m)
-                  found  <- lift $ return $ Data.Map.lookup (TinyUrl s) m
+                  found  <- lift $ return $ Data.Map.lookup key m
                   case found of
-                     Just a  -> return $ ResolvedTinyUrl (TinyUrl a)
-                     Nothing -> (lift $ putStrLn ("did not find " ++ s)) >> throwError err404
+                     Just a  -> return $ TinyUrlValue a
+                     Nothing -> (lift $ putStrLn ("did not find " ++ key)) >> throwError err404
 
-                put :: String -> UpdatedTinyUrl -> Handler NoContent
-                put key (UpdatedTinyUrl value) = Handler $ do
-                 m       <- lift $ takeMVar map
-                 updated <- lift $ return $ Data.Map.insert (TinyUrl key) value m
-                 _       <- lift $ putStrLn $ "updated:" ++ (show updated)
-                 _       <- lift $ putMVar map updated
-                 return NoContent
+                put :: String -> TinyUrlValue -> Handler NoContent
+                put key (TinyUrlValue uri) = Handler $ do
+                     m       <- lift $ takeMVar map
+                     updated <- lift $ return $ Data.Map.insert key uri m
+                     _       <- lift $ putMVar map updated
+                     return NoContent
 
 instance ToCapture (Capture "value" String) where
   toCapture _ =
     DocCapture "key"
                "TinyUrl key"
 
-instance (ToSample ResolvedTinyUrl) where
-  toSamples _ = singleSample $ ResolvedTinyUrl $ TinyUrl "foo"
-
-instance (ToSample UpdatedTinyUrl) where
-  toSamples _ = singleSample $ UpdatedTinyUrl "bar"
+instance (ToSample TinyUrlValue) where
+  toSamples _ = singleSample $ TinyUrlValue $ URI "https" (Just $ URIAuth "" "www.google.com" ":42") "/bippy" "" ""
 
 
--- ResolvedTinyUrl
+-- TinyUrlValue
 
-app :: MVar (Map TinyUrl String) -> Application
+app :: MVar (Map String URI) -> Application
 app map = serve tinyUrlAPI (server map)
 
 main :: IO ()
