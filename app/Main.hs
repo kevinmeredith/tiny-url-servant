@@ -24,7 +24,6 @@ import Control.Concurrent.MVar
 import Data.Map
 import Control.Monad.Except
 import Network.URI
-import Data.HashMap.Lazy
 import qualified Data.Text as T
 
 
@@ -38,14 +37,10 @@ type ValueAPI = Capture "value" String :> (
 newtype TinyUrlValue = TinyUrlValue { value :: URI } deriving Generic
 
 instance FromJSON URI where
-    parseJSON = withObject "URI" $ \v ->
-      case Data.HashMap.Lazy.lookup "value" v of
-        Just (String str) -> let unpacked = T.unpack str in
-          case parseURI unpacked of
-            Just uri -> pure uri
-            Nothing  -> fail $ "String:" ++ unpacked ++ "is not valid URI."
-        Just value        -> typeMismatch "value" value
-        Nothing           -> fail $ "JSON object does not have 'value' key."
+    parseJSON = withText "URI" $ \t ->
+        case (parseURI . T.unpack $ t) of
+          Just uri -> return uri
+          Nothing  -> fail "Invalid URI"
 
 instance ToJSON URI where
   toJSON x = String $ T.pack $ show x
