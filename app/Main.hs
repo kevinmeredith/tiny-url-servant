@@ -77,9 +77,7 @@ server map = tinyUrlOperations
 
                 put :: String -> TinyUrlValue -> Handler NoContent
                 put key (TinyUrlValue uri) = Handler $ do
-                     m       <- lift $ takeMVar map
-                     updated <- lift $ return $ Data.Map.insert key uri m
-                     _       <- lift $ putMVar map updated
+                     _ <- lift $ modifyMVar_ map (\m -> return $ Data.Map.insert key uri m)
                      return NoContent
 
 instance ToCapture (Capture "value" String) where
